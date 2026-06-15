@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#123353"/>
+      <stop offset="1" stop-color="#06121f"/>
+    </linearGradient>
+    <linearGradient id="sail" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#36d1dc"/>
+      <stop offset="1" stop-color="#5b86e5"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- mast + mainsail -->
+  <path d="M256 96 L256 352 L150 352 Z" fill="url(#sail)"/>
+  <!-- jib -->
+  <path d="M276 150 L360 352 L276 352 Z" fill="#eaf2fb" opacity="0.92"/>
+  <!-- hull -->
+  <path d="M120 372 L392 372 Q360 432 256 432 Q152 432 120 372 Z" fill="#eaf2fb"/>
+  <!-- waves -->
+  <path d="M96 446 q40 -22 80 0 t80 0 t80 0 t80 0" fill="none" stroke="#36d1dc" stroke-width="14" stroke-linecap="round" opacity="0.7"/>
+</svg>

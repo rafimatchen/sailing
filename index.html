@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b1f33" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Sailing Weather" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="description" content="Live wind and weather conditions for sailing, from a WeatherLink station." />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icon.svg" />
+<title>Sailing Conditions</title>
+<style>
+  :root {
+    --bg-0: #06121f;
+    --bg-1: #0b1f33;
+    --card: rgba(255, 255, 255, 0.06);
+    --card-border: rgba(255, 255, 255, 0.10);
+    --text: #eaf2fb;
+    --muted: #8fa6bd;
+    --accent: #36d1dc;
+    --good: #46d39a;
+    --warn: #ffcb5e;
+    --danger: #ff6b6b;
+    --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+    --radius: 18px;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(91,134,229,0.25), transparent 60%),
+      radial-gradient(900px 500px at -10% 0%, rgba(54,209,220,0.18), transparent 55%),
+      linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 100%);
+    background-attachment: fixed;
+    min-height: 100vh; min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .wrap {
+    max-width: 640px; margin: 0 auto;
+    padding: calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 28px);
+  }
+
+  header.app { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .station { min-width: 0; }
+  .station h1 {
+    font-size: 1.15rem; line-height: 1.2; margin: 0; font-weight: 700;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .station .updated { font-size: 0.78rem; color: var(--muted); margin-top: 3px; display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.live { background: var(--good); animation: pulse 2.4s infinite; }
+  .dot.stale { background: var(--warn); }
+  .dot.error { background: var(--danger); }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(70,211,154,0.6); }
+    70% { box-shadow: 0 0 0 8px rgba(70,211,154,0); }
+    100% { box-shadow: 0 0 0 0 rgba(70,211,154,0); }
+  }
+
+  button.refresh {
+    flex: none; appearance: none; border: 1px solid var(--card-border);
+    background: var(--card); color: var(--text); width: 44px; height: 44px;
+    border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+    transition: transform .2s ease, background .2s ease;
+  }
+  button.refresh:active { transform: scale(0.92); background: rgba(255,255,255,0.12); }
+  button.refresh svg { width: 22px; height: 22px; }
+  button.refresh.spin svg { animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .hero {
+    position: relative;
+    background: linear-gradient(150deg, rgba(54,209,220,0.18), rgba(91,134,229,0.16));
+    border: 1px solid var(--card-border); border-radius: 24px;
+    padding: 22px 20px 20px; box-shadow: var(--shadow); overflow: hidden; margin-bottom: 14px;
+  }
+  .hero .label { font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .hero-main { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .wind-read { min-width: 0; }
+  .wind-value { font-size: 3.4rem; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+  .wind-value .unit { font-size: 1.1rem; font-weight: 600; color: var(--muted); margin-left: 6px; }
+  .wind-sub { margin-top: 10px; font-size: 0.9rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 16px; }
+  .wind-sub b { color: var(--text); font-weight: 700; }
+
+  .compass { flex: none; width: 116px; height: 116px; position: relative; }
+  .compass svg { width: 100%; height: 100%; display: block; }
+  .compass .needle { transition: transform 0.8s cubic-bezier(.2,.8,.2,1); transform-origin: 50% 50%; }
+  .compass .dir { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+  .compass .dir span { font-size: 1.0rem; font-weight: 800; }
+
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .card {
+    background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius);
+    padding: 14px 14px 13px; box-shadow: var(--shadow); min-width: 0;
+  }
+  .card .k { font-size: 0.74rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .card .v { margin-top: 8px; font-size: 1.7rem; font-weight: 700; line-height: 1.05; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .v .unit { font-size: 0.85rem; color: var(--muted); font-weight: 600; margin-left: 3px; }
+  .card .x { margin-top: 4px; font-size: 0.78rem; color: var(--muted); }
+  .card .ico { font-size: 0.95rem; }
+
+  .section-title { margin: 22px 2px 10px; font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+
+  /* Forecast */
+  .forecast { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .fc {
+    background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius);
+    padding: 12px 8px; text-align: center; min-width: 0;
+  }
+  .fc .when { font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .fc img { width: 40px; height: 40px; object-fit: contain; margin: 6px auto 4px; display: block; }
+  .fc .ftemp { font-size: 1.15rem; font-weight: 700; }
+  .fc .rain { font-size: 0.72rem; color: var(--accent); margin-top: 3px; min-height: 0.9em; }
+
+  .banner { border-radius: var(--radius); padding: 14px 16px; font-size: 0.9rem; line-height: 1.45; margin-bottom: 14px; border: 1px solid var(--card-border); background: var(--card); }
+  .banner.error { border-color: rgba(255,107,107,0.4); background: rgba(255,107,107,0.10); }
+  .banner.error b { color: var(--danger); }
+  .banner a { color: var(--accent); }
+  .hidden { display: none !important; }
+
+  .skeleton {
+    background: linear-gradient(90deg, rgba(255,255,255,0.05), rgba(255,255,255,0.12), rgba(255,255,255,0.05));
+    background-size: 200% 100%; animation: sheen 1.3s infinite; border-radius: 6px; color: transparent !important;
+  }
+  @keyframes sheen { to { background-position: -200% 0; } }
+
+  footer.app { margin-top: 26px; text-align: center; font-size: 0.76rem; color: var(--muted); line-height: 1.6; }
+  footer.app a { color: var(--accent); text-decoration: none; }
+
+  @media (min-width: 520px) {
+    .grid { grid-template-columns: repeat(3, 1fr); }
+    .wind-value { font-size: 4rem; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="app">
+      <div class="station">
+        <h1 id="stationName" class="skeleton">Loading station…</h1>
+        <div class="updated">
+          <span id="statusDot" class="dot"></span>
+          <span id="updated">Connecting…</span>
+        </div>
+      </div>
+      <button id="refreshBtn" class="refresh" aria-label="Refresh now" title="Refresh">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+          <path d="M21 3v6h-6" />
+        </svg>
+      </button>
+    </header>
+
+    <div id="errorBanner" class="banner error hidden"></div>
+
+    <!-- Hero: wind -->
+    <section class="hero" aria-label="Wind">
+      <div class="label">Wind</div>
+      <div class="hero-main">
+        <div class="wind-read">
+          <div class="wind-value"><span id="windSpeed" class="skeleton">--</span><span id="windUnit" class="unit"></span></div>
+          <div class="wind-sub">
+            <span>Gust <b id="windGust">--</b></span>
+            <span>From <b id="windDirText">--</b></span>
+          </div>
+        </div>
+        <div class="compass" aria-hidden="true">
+          <svg viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="56" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.18)" stroke-width="1.5"/>
+            <g fill="var(--muted)" font-size="11" font-weight="700" text-anchor="middle" font-family="inherit">
+              <text x="60" y="20">N</text>
+              <text x="104" y="64">E</text>
+              <text x="60" y="108">S</text>
+              <text x="16" y="64">W</text>
+            </g>
+            <g id="needle" class="needle">
+              <polygon points="60,14 53,62 60,56 67,62" fill="var(--accent)"/>
+              <polygon points="60,106 53,58 60,64 67,58" fill="rgba(255,255,255,0.28)"/>
+              <circle cx="60" cy="60" r="5" fill="var(--text)"/>
+            </g>
+          </svg>
+          <div class="dir"><span id="windDeg"></span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Conditions grid -->
+    <div id="grid" class="grid"></div>
+
+    <!-- Forecast -->
+    <div id="forecastWrap" class="hidden">
+      <div class="section-title" id="forecastTitle">Today</div>
+      <div id="forecast" class="forecast"></div>
+    </div>
+
+    <footer class="app">
+      <div>Live data from a <a id="sourceLink" href="#" target="_blank" rel="noopener">Davis WeatherLink</a> station.</div>
+      <div>Tap the station name to open the full report · Add to Home Screen for an app-like view.</div>
+    </footer>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- Configuration -------------------------------------------------------
+  var CONFIG = {
+    token: "369db7169c3743889aa6034a27ad4f5d",
+    refreshMs: 60 * 1000,
+    staleMinutes: 20,
+    // Direct fetch is tried first; these public CORS proxies are fallbacks for
+    // when the browser blocks the cross-origin request. Set to [] for direct-only.
+    proxies: [
+      function (u) { return "https://corsproxy.io/?url=" + encodeURIComponent(u); },
+      function (u) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(u); }
+    ]
+  };
+
+  var BASE = "https://www.weatherlink.com/embeddablePage";
+  var DATA_URL = BASE + "/getData/" + CONFIG.token;
+  var PAGE_URL = BASE + "/show/" + CONFIG.token + "/summary";
+
+  var $ = function (id) { return document.getElementById(id); };
+  $("sourceLink").href = PAGE_URL;
+  $("stationName").addEventListener("click", function () { window.open(PAGE_URL, "_blank", "noopener"); });
+
+  // ---- Helpers -------------------------------------------------------------
+  function num(v) {
+    if (v == null) return NaN;
+    var m = String(v).replace(/,/g, "").match(/-?\d+(\.\d+)?/);
+    return m ? parseFloat(m[0]) : NaN;
+  }
+  function has(v) { return v != null && String(v).trim() !== "" && String(v) !== "--"; }
+
+  var _decoder = document.createElement("textarea");
+  function decode(s) { _decoder.innerHTML = String(s == null ? "" : s); return _decoder.value; }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (m) {
+      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[m];
+    });
+  }
+
+  function degToCardinal(deg) {
+    if (deg == null || isNaN(deg)) return "--";
+    var dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+    return dirs[Math.round(((deg % 360) / 22.5)) % 16];
+  }
+
+  // Friendly, compact unit labels.
+  function windUnit(u) { return ({ knots: "kt", "km/h": "km/h", mph: "mph", "m/s": "m/s" })[u] || (u || ""); }
+
+  // ---- Fetch (direct, then proxies) ----------------------------------------
+  function fetchData() {
+    var url = DATA_URL + "?_=" + Date.now();
+    var attempts = [function (u) { return u; }].concat(CONFIG.proxies);
+    return (function tryNext(i) {
+      if (i >= attempts.length) return Promise.reject(new Error("All fetch attempts failed (likely CORS or network)."));
+      return fetch(attempts[i](url), { headers: { "Accept": "application/json" }, cache: "no-store" })
+        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
+        .then(function (t) { try { return JSON.parse(t); } catch (e) { throw new Error("Response was not JSON."); } })
+        .catch(function () { return tryNext(i + 1); });
+    })(0);
+  }
+
+  // ---- Render --------------------------------------------------------------
+  var ICONS = {
+    temp: "🌡️", feels: "🌡️", humidity: "💧", pressure: "📊",
+    rain: "🌧️", rainDay: "☔", hilo: "📈", air: "🌫️"
+  };
+
+  function setSkel(el, txt) { el.classList.remove("skeleton"); el.textContent = txt; }
+
+  function render(d) {
+    if (!d || typeof d !== "object") throw new Error("Empty response.");
+
+    if (d.noAccess) {
+      showError("The station is private (noAccess). Check the share link is public.");
+      return;
+    }
+
+    var tUnit = decode(d.tempUnits || "°F");      // "&deg;F" -> "°F"
+    var wUnit = windUnit(d.windUnits);            // knots -> kt
+    var bUnit = d.barometerUnits || "";
+    var rUnit = d.rainUnits || "";
+
+    // Station / location
+    setSkel($("stationName"), d.systemLocation || d.stationName || "Sailing Conditions");
+
+    // Timestamp
+    updateTimestamp(d.lastReceived);
+
+    // ---- Wind hero ----
+    var speedEl = $("windSpeed");
+    if (has(d.wind)) { setSkel(speedEl, String(d.wind)); $("windUnit").textContent = wUnit; }
+    else { setSkel(speedEl, "--"); }
+
+    $("windGust").textContent = has(d.gust) ? (d.gust + (wUnit ? " " + wUnit : "")) : "--";
+
+    var deg = num(d.windDirection);
+    $("windDirText").textContent = !isNaN(deg) ? degToCardinal(deg) : "--";
+    $("windDeg").textContent = !isNaN(deg) ? Math.round(deg) + "°" : "";
+    if (!isNaN(deg)) $("needle").style.transform = "rotate(" + deg + "deg)"; // points where wind comes FROM
+
+    // ---- Condition cards ----
+    var cards = [];
+    if (has(d.temperature)) cards.push(card("Temperature", ICONS.temp, d.temperature, tUnit));
+    if (has(d.temperatureFeelLike)) cards.push(card("Feels Like", ICONS.feels, d.temperatureFeelLike, tUnit));
+    if (has(d.humidity)) cards.push(card("Humidity", ICONS.humidity, d.humidity, "%"));
+    if (has(d.hiTemp) || has(d.loTemp)) {
+      var hl = (has(d.hiTemp) ? d.hiTemp : "--") + " / " + (has(d.loTemp) ? d.loTemp : "--");
+      cards.push(card("High / Low", ICONS.hilo, hl, tUnit));
+    }
+    if (has(d.barometer)) cards.push(card("Barometer", ICONS.pressure, d.barometer, bUnit, d.barometerTrend));
+    if (has(d.rain)) cards.push(card("Rain Today", ICONS.rainDay, d.rain, rUnit));
+    if (has(d.seasonalRain)) cards.push(card("Season Rain", ICONS.rain, d.seasonalRain, rUnit));
+    if (has(d.thwIndex)) cards.push(card("THW Index", ICONS.temp, d.thwIndex, tUnit));
+    if (has(d.thswIndex)) cards.push(card("THSW Index", ICONS.temp, d.thswIndex, tUnit));
+    if (has(d.aqiString) || has(d.aqi)) cards.push(card("Air Quality", ICONS.air, d.aqiString || d.aqi, d.aqiScheme || ""));
+
+    var grid = $("grid");
+    grid.innerHTML = "";
+    cards.forEach(function (c) { grid.appendChild(c); });
+
+    // ---- Forecast ----
+    renderForecast(d.forecastOverview);
+
+    hideError();
+  }
+
+  function card(title, icon, value, unit, extra) {
+    var el = document.createElement("div");
+    el.className = "card";
+    var u = has(unit) ? '<span class="unit">' + escapeHtml(unit) + "</span>" : "";
+    el.innerHTML =
+      '<div class="k"><span class="ico">' + icon + "</span>" + escapeHtml(title) + "</div>" +
+      '<div class="v">' + escapeHtml(String(value)) + u + "</div>" +
+      (has(extra) ? '<div class="x">' + escapeHtml(extra) + "</div>" : "");
+    return el;
+  }
+
+  function renderForecast(overview) {
+    var wrap = $("forecastWrap"), row = $("forecast");
+    if (!Array.isArray(overview) || !overview.length) { wrap.classList.add("hidden"); return; }
+    var day = overview[0];
+    var periods = [
+      { key: "morning", label: "Morning" },
+      { key: "afternoon", label: "Afternoon" },
+      { key: "evening", label: "Evening" },
+      { key: "night", label: "Night" }
+    ];
+    row.innerHTML = "";
+    var any = false;
+    periods.forEach(function (p) {
+      var f = day[p.key];
+      if (!f) return;
+      any = true;
+      var el = document.createElement("div");
+      el.className = "fc";
+      var rain = (f.chanceofrain != null && Number(f.chanceofrain) > 0)
+        ? "💧 " + f.chanceofrain + "%" : "";
+      var icon = f.weatherIconUrl
+        ? '<img src="' + escapeHtml(f.weatherIconUrl) + '" alt="' + escapeHtml(f.weatherDesc || "") + '" loading="lazy" />'
+        : "";
+      el.innerHTML =
+        '<div class="when">' + escapeHtml(p.label) + "</div>" +
+        icon +
+        '<div class="ftemp">' + (f.temp != null ? escapeHtml(f.temp) + "°" : "--") + "</div>" +
+        '<div class="rain">' + escapeHtml(rain) + "</div>";
+      el.title = f.weatherDesc || "";
+      row.appendChild(el);
+    });
+    wrap.classList.toggle("hidden", !any);
+    if (day.date) $("forecastTitle").textContent = "Forecast · " + day.date;
+  }
+
+  // ---- Status / timestamp --------------------------------------------------
+  function parseTs(ts) {
+    if (ts == null) return null;
+    var n = Number(ts);
+    if (!isNaN(n) && String(ts).trim() !== "") return new Date(n < 1e12 ? n * 1000 : n);
+    var d = new Date(ts);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  function updateTimestamp(ts) {
+    var d = parseTs(ts), dot = $("statusDot");
+    if (!d) { $("updated").textContent = "Updated just now"; dot.className = "dot live"; return; }
+    var stale = (Date.now() - d.getTime()) / 60000 > CONFIG.staleMinutes;
+    dot.className = "dot " + (stale ? "stale" : "live");
+    $("updated").textContent = "Updated " + relTime(d) + (stale ? " · stale" : "");
+  }
+  function relTime(d) {
+    var sec = Math.round((Date.now() - d.getTime()) / 1000);
+    if (sec < 45) return "just now";
+    var min = Math.round(sec / 60);
+    if (min < 60) return min + " min ago";
+    var hr = Math.round(min / 60);
+    if (hr < 24) return hr + " hr ago";
+    return d.toLocaleString();
+  }
+
+  // ---- Errors --------------------------------------------------------------
+  function showError(msg) {
+    var b = $("errorBanner");
+    b.innerHTML = "<b>Couldn't load live data.</b> " + escapeHtml(msg) +
+      ' <a href="' + PAGE_URL + '" target="_blank" rel="noopener">Open the original page →</a>';
+    b.classList.remove("hidden");
+    $("statusDot").className = "dot error";
+    $("updated").textContent = "Offline";
+    if ($("stationName").textContent === "Loading station…") setSkel($("stationName"), "Sailing Conditions");
+    $("stationName").classList.remove("skeleton");
+    $("windSpeed").classList.remove("skeleton");
+  }
+  function hideError() { $("errorBanner").classList.add("hidden"); }
+
+  // ---- Loop ----------------------------------------------------------------
+  var timer = null, loading = false;
+  function refresh() {
+    if (loading) return;
+    loading = true;
+    var btn = $("refreshBtn");
+    btn.classList.add("spin");
+    fetchData()
+      .then(function (data) { render(data); })
+      .catch(function (err) { showError(err.message || "Network error."); })
+      .then(function () { loading = false; btn.classList.remove("spin"); });
+  }
+  function schedule() {
+    if (timer) clearInterval(timer);
+    timer = setInterval(function () { if (document.visibilityState === "visible") refresh(); }, CONFIG.refreshMs);
+  }
+
+  $("refreshBtn").addEventListener("click", refresh);
+  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") refresh(); });
+
+  refresh();
+  schedule();
+})();
+</script>
+</body>
+</html>
