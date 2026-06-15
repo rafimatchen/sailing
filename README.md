@@ -9,9 +9,11 @@ built for sailing where **wind is the headline metric**.
 
 - **Wind hero** — current speed, gust, average, and a live compass showing the
   direction the wind blows *from* (with cardinal + degrees).
-- **Conditions grid** — temperature, feels-like, humidity, dew point,
-  barometer (+ trend), rain rate, rain today, solar, UV.
-- **More** section automatically lists any other sensors the station reports.
+- **Conditions grid** — temperature, feels-like, humidity, today's high/low,
+  barometer (+ trend), rain today, seasonal rain, and THW/THSW/air-quality
+  when the station reports them.
+- **Forecast** — the station's morning / afternoon / evening / night outlook
+  with icons, temps, and rain chance.
 - **Live & resilient** — auto-refreshes every 60s, pauses when the tab is
   hidden, shows a connection status dot (live / stale / offline), and links to
   the original page if data can't load.
@@ -43,6 +45,11 @@ tries a **direct** request and then falls back to public CORS proxies
 (configurable in `CONFIG.proxies` near the top of the script in `index.html`).
 For best reliability, point it at your own proxy or host it on a domain you
 control.
+
+The endpoint returns a flat JSON object (`temperature`, `wind`, `gust`,
+`windDirection`, `barometer`/`barometerTrend`, `humidity`, `rain`,
+`seasonalRain`, `forecastOverview`, unit fields, `lastReceived`, …) and the
+page reads the station's own units — **knots** for wind, ideal for sailing.
 
 ## Configuration
 
